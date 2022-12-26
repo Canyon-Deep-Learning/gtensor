@@ -1,9 +1,13 @@
 [package]
 name = "gtensor"
-version = "0.1.0"
+version = "0.5.4"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+author = "Rylan Yancey"
+description = "A Machine Learning Tensor Library for constructing Graphs with Neural Network Operations"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["machine-learning, tensor"]
+homepage = "https://github.com/Canyon-ml/gtensor"
 
 [dependencies]
 matrixmultiply = "0.3.2"

@@ -402,6 +402,8 @@ impl Operator for MaxPool {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// Flatten a 4-Dimensional Tensor into a 2-Dimensional Tensor. 
+/// Used to convert from CNN data to Dense layer data.
 pub struct Flatten {
     pub input: Rc<RefCell<Tensor>>,
     pub delta: Rc<RefCell<Tensor>>,
@@ -479,6 +481,11 @@ impl Operator for Split {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// A recent invention which stands for Rectified Linear Units. The formula is deceptively simple: max(0,z). 
+/// Despite its name and appearance, it’s not linear and provides the same benefits as 
+/// Sigmoid (i.e. the ability to learn nonlinear functions), but with better performance.
+/// 
+/// [More info on ReLU actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#relu)
 pub struct ReLU {
     pub input: Rc<RefCell<Tensor>>,
 }
@@ -515,6 +522,11 @@ impl Operator for ReLU {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// Sigmoid takes a real value as input and outputs another value between 0 and 1. 
+/// It’s easy to work with and has all the nice properties of activation functions: it’s non-linear, 
+/// continuously differentiable, monotonic, and has a fixed output range.
+/// 
+/// [More info on Sigmoid actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#sigmoid)
 pub struct Sigmoid {
     pub input: Rc<RefCell<Tensor>>,
 }
@@ -551,6 +563,12 @@ impl Operator for Sigmoid {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// Softmax function calculates the probabilities distribution of the event over ‘n’ different events. 
+/// In general way of saying, this function will calculate the probabilities of each target class 
+/// over all possible target classes. Later the calculated probabilities will be helpful for 
+/// determining the target class for the given inputs.
+/// 
+/// [more info on softmax actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#softmax) 
 pub struct Softmax {
     pub input: Rc<RefCell<Tensor>>,
 }
@@ -601,6 +619,11 @@ impl Operator for Softmax {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// Tanh squashes a real-valued number to the range \[-1, 1\]. It’s non-linear. 
+/// But unlike Sigmoid, its output is zero-centered. Therefore, in practice 
+/// the tanh non-linearity is always preferred to the sigmoid nonlinearity.
+/// 
+/// [More info on Tanh Actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#tanh)
 pub struct Tanh {
     pub input: Rc<RefCell<Tensor>>
 }
@@ -613,7 +636,7 @@ impl Operator for Tanh {
     
             let mut inp = self.input.borrow_mut();
 
-            // Perform the Relu Activation
+            // Perform the Tanh Activation
             // Its ok to write into the input here. It wont be used until the next forward pass.
             for i in inp.iter_mut() {
                 *i = (f32::exp(*i) - f32::exp(-*i)) / (f32::exp(*i) + f32::exp(-*i));
