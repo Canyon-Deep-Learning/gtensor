@@ -6,7 +6,6 @@ author = "Rylan Yancey"
 description = "A Machine Learning Tensor Library for constructing Graphs with Neural Network Operations"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-keywords = ["machine-learning, tensor"]
 homepage = "https://github.com/Canyon-ml/gtensor"
 
 [dependencies]
