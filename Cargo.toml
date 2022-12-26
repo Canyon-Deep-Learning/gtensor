@@ -1,0 +1,15 @@
+[package]
+name = "gtensor"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+matrixmultiply = "0.3.2"
+anyhow = "1.0.68"
+fastrand = "1.8.0"
+serde_json = "1.0.91"
+serde = { version = "1.0.151", features = ["derive"] }
+rayon = "1.6.1"
+pretty_assertions = "1.3.0"
