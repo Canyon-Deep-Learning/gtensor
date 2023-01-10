@@ -120,36 +120,36 @@ for ( h = 0; h < H; h++ )
         let col: i32 = (((A.shape.1 + (2 * pady) - kernely) / stridey) + 1) as i32;
 
         for (e, b) in B.data.iter_mut().enumerate() {
-            // The Column of B we are in: aka the element of the kernel
-            let by = (e % B.shape.1) as i32;
             // The Row of B we are in: aka the starting location of the kernel
-            let bx = (e / B.shape.0) as i32;
+            let bx = (e / B.shape.1) as i32;
+            // The Column of B we are in: aka the element of the kernel
+            let by = (e % B.shape.0) as i32;
 
             // The duration of A we are in / (number of starting positions)
-            let ad = bx / (row * col);
+            let ad = bx / B.shape.0 as i32;
             // The channel of A we are in 
             let ac = by / (kernelx * kernely) as i32;
-            // The column of the Patch we are in
-            let ay = by / kernely as i32;
-            // The row of the patch we are in
-            let ax = by % kernelx as i32;
+            // The row of the Patch we are in
+            let px = (by - (ac * (kernelx * kernely) as i32)) / kernelx as i32;
+            // The col of the Patch we are in
+            let py = (by - (ac * (kernelx * kernely) as i32)) % kernely as i32;
 
-            // the column of the starting position (top-left) of the patch, unadjusted
-            let py = (bx / col) - (ad * col);
-            // the row of the starting position (top-left) of the patch, unadjusted
-            let px = (bx % row) - (ad * row);
+            // The row of the patchs' origin (top left)
+            let mut ax = (bx - (ad * B.shape.0 as i32)) / (((A.shape.0 as i32 + (2 * padx as i32 - kernelx as i32)) / stridex as i32) + 1);
+            // The col of the patchs' origin  (top left)
+            let mut ay = (bx - (ad * B.shape.0 as i32)) % (((A.shape.0 as i32 + (2 * pady as i32 - kernely as i32)) / stridey as i32) + 1);
 
-            // The actual col position we are in
-            let pya = ((py * stridey as i32) - pady as i32) + ay;
-            // The actual row position we are in
-            let pxa = ((px * stridex as i32) - padx as i32) + ax;
+            // Use ax to compute the final row
+            ax = (ax - padx as i32) + px;
+            // Use ay to compute the final col 
+            ay = (ay - pady as i32) + py;
 
             // make sure we are not out of bounds
-            if pya < 0 || pya >= A.shape.1 as i32 ||
-               pxa < 0 || pxa >= A.shape.0 as i32 {
+            if ax < 0 || ax >= A.shape.0 as i32 ||
+               ay < 0 || ay >= A.shape.1 as i32 {
                 *b = 0.0;
             } else {
-                *b = A[(pxa as usize, pya as usize, ac as usize, ad as usize)];
+                *b = A[(ax as usize, ay as usize, ac as usize, ad as usize)];
             }
         }
     }
