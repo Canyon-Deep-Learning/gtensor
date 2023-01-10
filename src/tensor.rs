@@ -1,7 +1,13 @@
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use crate::*;
 use crate::shape::{Shape2, Shape4};
 use anyhow::Result;
+
+/// Typedef to make this Rc<RefCell<Tensor>> look nicer.
+pub type SharedTensor = Rc<RefCell<Tensor>>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Tensor {
@@ -172,6 +178,12 @@ impl Tensor {
         }
     }
 
+    /// Find the mean for the entire tensor
+    pub fn mean (&self) -> f32 {
+        let sum = self.sum();
+        sum / self.len() as f32
+    }
+
     /// Computes the sum of all elements in the Tensor
     pub fn sum (&self) -> f32 {
         let mut sum = 0.0;
@@ -195,7 +207,7 @@ impl Tensor {
         }
     }
 
-    /// Checks to see if a Tensor is 1 or 2-D
+    /// Checks to see if a Tensor is 2-D or 4-D
     pub fn is_2d (&self) -> bool {
         self.channels == 1 && self.duration != 1
     }
@@ -227,6 +239,42 @@ impl Tensor {
         }
 
         Ok(())
+    }
+
+    /// Sum over an axis in A into B. 
+    /// - A: The Tensor being summed over. 
+    /// - B: The target location for the sum. Must be a vector of the same size as the target axis. 
+    /// - Axis: The axis to sum over. 
+    /// 
+    /// If you use Axis::Rows, each element of B (a vector) will contain the sum of the corresponding row in A. \
+    /// If you use Axis::Cols, each element of B will contain the sum of the corresponding row in A. \
+    /// 
+    /// For Axis::Channels, each element of B will contain the sum of its corresponding channel in A. \
+    /// For Axis::Duration, each element of B will contain the sum of its corresponding Duration is A. 
+    /// 
+    /// # Example
+    /// ```
+    /// // A is a 3x3 matrix
+    /// A = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    /// // B is a 3x1 Tensor
+    /// // B must be 3x1 or 1x3 since it must be the same length as the target axis on A. 
+    /// B = Tensor::new2((3, 1));
+    /// Tensor::sum_axis(&A, &mut B, Axis::Rows);
+    /// // B is now the sum of the rows
+    /// B = [6, 15, 24];
+    /// 
+    /// Tensor::sum_axis(&A, &mut B, Axis::Cols);
+    /// // B is now the sum of the columns
+    /// B = [12, 15, 18]
+    pub fn sum_axis (A: &Tensor, B: &mut Tensor, axis: Axis) {
+        match axis {
+            Axis::Rows => {
+                
+            },
+            Axis::Cols => todo!(),
+            Axis::Channels => todo!(),
+            Axis::Duration => todo!(),
+        }
     }
 
     /// A + B -> C.\
@@ -490,4 +538,11 @@ impl Default for Tensor {
             duration: Default::default() 
         }
     }
+}
+
+pub enum Axis {
+    Rows,
+    Cols,
+    Channels,
+    Duration,
 }

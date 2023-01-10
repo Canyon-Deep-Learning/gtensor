@@ -80,7 +80,6 @@ impl Op {
                         del_i: Rc::new(RefCell::new(Tensor::new2((prev_size.0, prev_size.1)))),
                         opt_w: global_opt.create((prev_size.1, *size, 1, 1)),
                         opt_b: global_opt.create((prev_size.0, prev_size.1, 1, 1)),
-                        size: *size,
                     }
                 ));
 
@@ -233,7 +232,9 @@ impl Op {
                     }
                 ));
 
-                *tag = OpTag::Softmax;
+                OpTag::check_order_error(OpTag::D2, prev_tag)?;
+
+                *tag = OpTag::Actv;
             }   
         // -------- // ----------------------------------------------------- // ------- //
             Op::OptOverride (op, opt) => {
@@ -286,17 +287,24 @@ use std::ops::Add;
 impl Add<Op> for Op {
     type Output = Op;
 
+    // Op + Op = Group(Vec<Op>)
     fn add(self, rhs: Op) -> Self::Output {
         let mut new_ops = Vec::new();
         match self {
+            // if self is a group
             Op::Group(ops) => match rhs {
+                // and rhs is a group
                 Op::Group(other_ops) =>
                     new_ops = [&ops[..], &other_ops[..]].concat(),
+                // and rhs is a single op
                 _=> new_ops = [&ops[..], &vec![rhs]].concat()
             }
+            // if self is a single op
             _ => match rhs {
+                // and rhs is a group
                 Op::Group(other_ops) => 
                     new_ops = [&vec![self], &other_ops[..]].concat(),
+                // and rhs is a single op
                 _=> new_ops = vec![self, rhs]
             }
         }
@@ -328,10 +336,10 @@ impl Add<Opt> for Op {
 #[derive(Clone, Copy)]
 pub enum OpTag {
     Flatten,
-    Softmax, 
     Split,
     Start, 
     Actv,
+    End,
     D2,
     D4,
 }
@@ -342,7 +350,6 @@ impl OpTag {
     pub fn check_order_error (a: OpTag, b: OpTag) -> Result<()> {
         match a {
             OpTag::Flatten => todo!(),
-            OpTag::Softmax => todo!(),
             OpTag::Split => todo!(),
             OpTag::Actv => todo!(),
             OpTag::D2 => todo!(),
@@ -353,10 +360,10 @@ impl OpTag {
 }
 
 
-pub type LR = f32;
-pub type Beta = f32;
-pub type Beta1 = f32;
-pub type Beta2 = f32;
+pub(crate) type LR = f32;
+pub(crate) type Beta = f32;
+pub(crate) type Beta1 = f32;
+pub(crate) type Beta2 = f32;
 
 /// Optimizer Descriptors
 #[derive(Copy, Clone)]
@@ -370,18 +377,21 @@ pub enum Opt {
 impl Opt {
     pub fn create (&self, delta_size: Shape4) -> Optimizer {
         match self {
+    // ------------- // ------------------------------ // ------------- //
             Opt::Momentum(lr, beta) => {
                 Optimizer::Momentum {
                     vdw: Tensor::new4(delta_size),
                     beta: *beta, lr: *lr
                 }
             },
+    // ------------- // ------------------------------ // ------------- //
             Opt::RMSProp(lr, beta) => {
                 Optimizer::RMSProp {
                     vdw: Tensor::new4(delta_size),
                     beta: *beta, lr: *lr
                 }
             },
+    // ------------- // ------------------------------ // ------------- //
             Opt::Adam(lr, beta1, beta2) => {
                 Optimizer::Adam {
                     vdw: Tensor::new4(delta_size),
@@ -390,11 +400,13 @@ impl Opt {
                     beta1: *beta1, beta2: *beta2, lr: *lr, step: 0,
                 }
             },
+    // ------------- // ------------------------------ // ------------- //
             Opt::SGD(lr) => {
                 Optimizer::SGD {
                     lr: *lr
                 }
             },
+    // ------------- // ------------------------------ // ------------- //
         }
     }
 }

@@ -15,7 +15,12 @@ mod graph;
 mod operators;
 mod shape;
 
-/// Descriptors provide Enums which can be given to the [Graph] for graph initialization.
+mod tensor3;
+
+mod tests;
+
+/// Descriptors provide Enums which can be given 
+/// to the [Graph] for graph initialization.
 pub mod descriptors;
 
 pub use graph::Graph;

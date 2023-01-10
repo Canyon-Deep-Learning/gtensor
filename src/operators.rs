@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use crate::tensor::Tensor;
+use crate::tensor::{Tensor, SharedTensor};
 use crate::optimizer::*;
 use crate::shape::{Coord4, Shape4, Shape2};
 
@@ -14,12 +14,12 @@ use anyhow::Result;
 pub(crate) trait Operator {
     /// The Forward Pass of a Module
     /// Computes the output of the Module
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>>;
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor>;
 
     /// The Backward Pass of a Module
     /// Computes the gradient of the Module
     /// If this layer has them, update the trainable params. 
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>>;
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor>;
 
     /// Get the name of the Operator - mostly for Error Handling purposes.
     fn get_name (&self) -> &str;
@@ -31,7 +31,7 @@ pub struct Dense {
     /// Holds the output of this layer in the Forward Step
     /// Found by the matrix multiplication of input x weight
     /// Batch Size x Layer Size.
-    pub output: Rc<RefCell<Tensor>>,
+    pub output: SharedTensor,
 
     /// The Weights of the Connections to this layers' Neurons
     /// Prev Size x This Size
@@ -44,7 +44,7 @@ pub struct Dense {
     /// The Output of the previous layer
     /// Stored here as a reference because we use it in the forward
     /// pass and the backward pass for computing the gradient. 
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 
     /// The Gradient with respect to the Weight
     /// Same size as Weight
@@ -52,19 +52,16 @@ pub struct Dense {
 
     /// The Gradient with respect to the Input
     /// Batch Size x Prev Size
-    pub del_i: Rc<RefCell<Tensor>>,
+    pub del_i: SharedTensor,
 
     // The Optomizers for this Layer
     pub opt_w: Optimizer,
     pub opt_b: Optimizer,
-
-    // initialization information
-    pub size: usize,
 }
 
 impl Operator for Dense {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         // Cache the Input Reference here
         self.input = input;
 
@@ -80,7 +77,7 @@ impl Operator for Dense {
         Ok(self.output.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
 
         // Acquire Delta ref cell, since we'll use it more than once
         let del = delta.borrow();
@@ -114,10 +111,10 @@ pub struct Convolution {
     /// - cols: ((input.cols - padding * 2) - kernel.cols + 1) / stride
     /// - channels: kernel.duration (number of filters)
     /// - duration: batch size
-    pub output: Rc<RefCell<Tensor>>,
+    pub output: SharedTensor,
 
     /// The Output of the Previous Layer
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 
     /// The Kernel for this Layer.
     /// Contains multiple Filters.
@@ -146,7 +143,7 @@ pub struct Convolution {
     pub del_w: Tensor,
 
     /// The Delta with respect to the input
-    pub del_i: Rc<RefCell<Tensor>>,
+    pub del_i: SharedTensor,
     
     /// The Stride of the Kernel.
     /// How many cells it jumps for every step.
@@ -164,7 +161,7 @@ pub struct Convolution {
 
 impl Operator for Convolution {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         self.input = input;
 
         // Convolve across the Input with the Kernel into Output
@@ -176,7 +173,7 @@ impl Operator for Convolution {
         Ok(self.output.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
 
         // Acquire Output and Delta ref cells, since we'll use them more than once
         let out = self.output.borrow();
@@ -219,13 +216,13 @@ impl Operator for Convolution {
 
 pub struct AvgPool {
     /// The Output for this Layer
-    pub output: Rc<RefCell<Tensor>>,
+    pub output: SharedTensor,
 
     /// The Delta wrt the Input
-    pub delta: Rc<RefCell<Tensor>>,
+    pub delta: SharedTensor,
 
     /// The Output of the Previous Layer
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 
     /// The Stride for the Pooling
     /// 0 is normal operation
@@ -238,7 +235,7 @@ pub struct AvgPool {
 
 impl Operator for AvgPool {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         // Cache the Input for use in the backward step
         self.input = input;
 
@@ -272,7 +269,7 @@ impl Operator for AvgPool {
         Ok(self.output.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
 
         // Mutably Acquire self delta, since we are using multiple times. 
         let mut del_out = self.delta.borrow_mut();
@@ -313,16 +310,16 @@ impl Operator for AvgPool {
 
 pub struct MaxPool {
     /// The Output for this Layer
-    pub output: Rc<RefCell<Tensor>>,
+    pub output: SharedTensor,
 
     /// The Delta wrt the Input
-    pub delta: Rc<RefCell<Tensor>>,
+    pub delta: SharedTensor,
 
     /// Cached max coordinates for efficiency (not benchmarked yet)
     pub cached_deltas: Vec<Shape4>,
 
     /// The Output of the Previous Layer
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 
     /// The Stride for the Pooling
     /// 0 is normal operation
@@ -335,7 +332,7 @@ pub struct MaxPool {
 
 impl Operator for MaxPool {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         // Cache the Input for use in the backward step
         self.input = input;
 
@@ -374,7 +371,7 @@ impl Operator for MaxPool {
         Ok(self.output.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
 
         // Mutably Acquire self delta, since we are using multiple times. 
         let mut del_self = delta.borrow_mut();
@@ -402,11 +399,82 @@ impl Operator for MaxPool {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// BatchNorm accelerates convergence by reducing internal covariate shift inside each batch. 
+/// If the individual observations in the batch are widely different, 
+/// the gradient updates will be choppy and take longer to converge.
+///
+/// The batch norm layer normalizes the incoming activations and outputs a 
+/// new batch where the mean equals 0 and standard deviation equals 1. 
+/// It subtracts the mean and divides by the standard deviation of the batch.
+pub struct BatchNorm {
+    /// Output for this layer.
+    /// Same size as the input tensor.
+    pub output: SharedTensor,
+
+    /// Output of the previous layer.
+    /// Will be used to hold our xhat values.
+    pub input: SharedTensor,
+
+    // Scale parameter
+    // size: size
+    pub gamma: Tensor,
+
+    // Shift parameter
+    // size: size
+    pub beta: Tensor,
+
+    // Cached values for backprop
+    // size: batch_size
+    pub sample_mean: Tensor,
+    pub sample_variance: Tensor,
+
+    // Will hold the gradients for gamma.
+    // size: same as beta and gamma
+    pub dgamma: Tensor,
+    pub dbeta: Tensor,
+
+    // Same size as previous layer output.
+    // We will compute the gradient wrt the input here.
+    pub dinput: SharedTensor,
+
+    // Optimizers for g and b.
+    pub gopt: Optimizer,
+    pub bopt: Optimizer,
+}
+
+impl Operator for BatchNorm {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
+        
+        // Store Input for later use
+        self.input = input;
+
+        let mut inp = self.input.borrow_mut();
+        let mut out = self.output.borrow_mut();
+
+        Ok(self.output.clone())
+    }
+
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
+        
+        let del_in = delta.borrow();
+        let inp = self.input.borrow();
+        let mut del_out = self.dinput.borrow_mut();
+
+        todo!()
+    }
+
+    fn get_name (&self) -> &str {
+        todo!()
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Flatten a 4-Dimensional Tensor into a 2-Dimensional Tensor. 
 /// Used to convert from CNN data to Dense layer data.
 pub struct Flatten {
-    pub input: Rc<RefCell<Tensor>>,
-    pub delta: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
+    pub delta: SharedTensor,
 
     // The shape of input when it enters "forward"
     pub shape_in: Shape4,
@@ -416,7 +484,7 @@ pub struct Flatten {
 
 impl Operator for Flatten {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         
         self.input = input;
 
@@ -429,7 +497,7 @@ impl Operator for Flatten {
         Ok(self.input.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
         
         self.delta = delta;
 
@@ -461,7 +529,7 @@ pub struct Split {
 
 impl Operator for Split {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         for path in self.paths.iter_mut() {
 
         }
@@ -469,7 +537,7 @@ impl Operator for Split {
         todo!()
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
         todo!()
     }
 // ------- // ------------------------------------------------------------ // ------- //
@@ -487,12 +555,12 @@ impl Operator for Split {
 /// 
 /// [More info on ReLU actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#relu)
 pub struct ReLU {
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 }
 
 impl Operator for ReLU {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         // Store the Input for later use
         self.input = input;
 
@@ -505,7 +573,7 @@ impl Operator for ReLU {
         Ok(self.input.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
         // Multiply the deltas for this operation by the next layer deltas
         for (d, i) in delta.borrow_mut().iter_mut().zip(self.input.borrow().iter()) {
             if *i <= 0.0 { *d = 0.0 }
@@ -528,12 +596,12 @@ impl Operator for ReLU {
 /// 
 /// [More info on Sigmoid actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#sigmoid)
 pub struct Sigmoid {
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 }
 
 impl Operator for Sigmoid {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         // Store the Input for later use
         self.input = input;
 
@@ -546,7 +614,7 @@ impl Operator for Sigmoid {
         Ok(self.input.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
         // Multiply the deltas for this operation by the next layer deltas
         for (d, i) in delta.borrow_mut().iter_mut().zip(self.input.borrow().iter()) {
             *d = *i * (1.0 - *i);
@@ -570,12 +638,12 @@ impl Operator for Sigmoid {
 /// 
 /// [more info on softmax actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#softmax) 
 pub struct Softmax {
-    pub input: Rc<RefCell<Tensor>>,
+    pub input: SharedTensor,
 }
 
 impl Operator for Softmax {
 // ------- // ------------------------------------------------------------ // ------- //
-    fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
         // Store the Input for later use
         self.input = input;
 
@@ -596,7 +664,7 @@ impl Operator for Softmax {
         Ok(self.input.clone())
     }
 // ------- // ------------------------------------------------------------ // ------- //
-    fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
         // Multiply the deltas for this operation by the next layer delta.
 
         let inp = self.input.borrow();
@@ -625,12 +693,12 @@ impl Operator for Softmax {
 /// 
 /// [More info on Tanh Actv](https://ml-cheatsheet.readthedocs.io/en/latest/activation_functions.html#tanh)
 pub struct Tanh {
-    pub input: Rc<RefCell<Tensor>>
+    pub input: SharedTensor
 }
 
 impl Operator for Tanh {
     // ------- // ------------------------------------------------------------ // ------- //
-        fn forward  (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+        fn forward  (&mut self, input: SharedTensor) -> Result<SharedTensor> {
             // Store the Input for later use
             self.input = input;
     
@@ -645,7 +713,7 @@ impl Operator for Tanh {
             Ok(self.input.clone())
         }
     // ------- // ------------------------------------------------------------ // ------- //
-        fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+        fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
             // Multiply the deltas for this operation by the next layer deltas
 
             let inp = self.input.borrow();

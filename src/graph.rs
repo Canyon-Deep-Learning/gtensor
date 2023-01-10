@@ -2,7 +2,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::tensor::Tensor;
+use crate::tensor::{Tensor, SharedTensor};
 use crate::operators::Operator;
 use crate::descriptors::*;
 use crate::shape::Shape4;
@@ -28,8 +28,10 @@ impl Graph {
             }
         )
     }
+}
 
-    pub fn forward (&mut self, input: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+impl Operator for Graph {
+    fn forward (&mut self, input: SharedTensor) -> Result<SharedTensor> {
 
         let mut next = input;
 
@@ -48,7 +50,7 @@ impl Graph {
         Ok(next)
     }
 
-    pub fn backward (&mut self, delta: Rc<RefCell<Tensor>>) -> Result<Rc<RefCell<Tensor>>> {
+    fn backward (&mut self, delta: SharedTensor) -> Result<SharedTensor> {
 
         let mut next = delta;
 
@@ -63,5 +65,9 @@ impl Graph {
         }
 
         Ok(next)
+    }
+
+    fn get_name (&self) -> &str {
+        "Graph"
     }
 }
